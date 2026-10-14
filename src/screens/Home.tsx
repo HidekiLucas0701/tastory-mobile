@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,14 +8,14 @@ import {
   ActivityIndicator,
   FlatList,
   Alert,
-  Image, // <--- Importação necessária adicionada
+  Image,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { auth, db } from '../services/firebaseConfig';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Recipe } from '../types/types';
 
 export default function Home() {
@@ -50,9 +50,12 @@ export default function Home() {
     );
   };
 
-  useEffect(() => {
-    fetchRecipes();
-  }, []);
+  // useFocusEffect substitui o useEffect para atualizar os dados sempre que a Home ganha foco
+  useFocusEffect(
+    useCallback(() => {
+      fetchRecipes();
+    }, [])
+  );
 
   const fetchRecipes = async () => {
     try {
@@ -76,7 +79,7 @@ export default function Home() {
       );
       const communitySnapshot = await getDocs(communityQuery);
       const communityList = communitySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Recipe[];
-      setCommunityRecipes(communityList); 
+      setCommunityRecipes(communityList);
 
     } catch (error) {
       console.error('Erro ao buscar receitas:', error);
@@ -88,14 +91,14 @@ export default function Home() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-      
+
       {/* 1. Header com saudação ao usuário logado */}
       <View style={styles.header}>
         <View>
           <Text style={styles.welcomeText}>Boas vindas,</Text>
           <Text style={styles.userName}>{userName} 👨‍🍳</Text>
         </View>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.profileButton}
           onPress={handleLogout}
         >
@@ -110,7 +113,7 @@ export default function Home() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          
+
           {/* 2. Lista de rolagem vertical com as receitas criadas pelo usuário */}
           <View style={styles.sectionContainer}>
             <View style={styles.sectionHeader}>
@@ -122,7 +125,7 @@ export default function Home() {
               <View style={styles.emptyCard}>
                 <Ionicons name="book-outline" size={28} color="#A09890" />
                 <Text style={styles.emptyText}>Você ainda não criou nenhuma receita.</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.inlineButton}
                   onPress={() => navigation.navigate('RecipeForms')}
                 >
@@ -131,8 +134,8 @@ export default function Home() {
               </View>
             ) : (
               userRecipes.map((recipe) => (
-                <TouchableOpacity 
-                  key={recipe.id} 
+                <TouchableOpacity
+                  key={recipe.id}
                   style={styles.recipeCard}
                   onPress={() => navigation.navigate('RecipeForms', { recipe, recipeId: recipe.id })}
                 >
@@ -164,7 +167,7 @@ export default function Home() {
                 showsHorizontalScrollIndicator={false}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.communityCard}
                     onPress={() => navigation.navigate('RecipeDetail', { recipe: item })}
                   >
@@ -187,7 +190,7 @@ export default function Home() {
       )}
 
       {/* 4. Botão flutuante (FAB) */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.fab}
         onPress={() => navigation.navigate('RecipeForms')}
         activeOpacity={0.8}
@@ -238,7 +241,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 24,
-    paddingBottom: 100, 
+    paddingBottom: 100,
     gap: 28,
   },
   sectionContainer: {

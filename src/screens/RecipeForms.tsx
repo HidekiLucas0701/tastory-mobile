@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { collection, addDoc, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -30,61 +30,81 @@ export default function RecipeFormsScreen() {
   const recipeId = route.params?.recipeId;
   const isEditing = Boolean(recipeId);
 
-  // Estados dos campos da receita
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('');
   const [prepTime, setPrepTime] = useState('');
   const [servings, setServings] = useState('');
-  const [imageUrl, setImageUrl] = useState(''); // Guarda a URL final (digitada ou do upload)
-  const [imageUri, setImageUri] = useState<string | null>(null); // Guarda a URI local do arquivo selecionado
+  const [imageUrl, setImageUrl] = useState('');
+  const [imageUri, setImageUri] = useState<string | null>(null);
   const [ingredients, setIngredients] = useState('');
   const [instructions, setInstructions] = useState('');
 
   const [loading, setLoading] = useState(false);
-  const [fetchingData, setFetchingData] = useState(isEditing);
+  const [fetchingData, setFetchingData] = useState(false);
 
-  useEffect(() => {
-    if (isEditing && recipeId) {
-      const fetchRecipeData = async () => {
-        try {
-          const docRef = doc(db, 'recipes', recipeId);
-          const docSnap = await getDoc(docRef);
+  // useFocusEffect garante que o código rode toda vez que a tela entra em foco (resolvendo o cache do React Navigation)
+  useFocusEffect(
+    useCallback(() => {
+      const currentRecipeId = route.params?.recipeId;
 
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            const currentUser = auth.currentUser;
+      if (currentRecipeId) {
+        // MODO EDIÇÃO
+        setFetchingData(true);
+        const fetchRecipeData = async () => {
+          try {
+            const docRef = doc(db, 'recipes', currentRecipeId);
+            const docSnap = await getDoc(docRef);
 
-            if (!currentUser || data.userId !== currentUser.uid) {
-              Alert.alert(
-                'Acesso Negado',
-                'Você não tem permissão para editar receitas de outros usuários.',
-                [{ text: 'OK', onPress: () => navigation.goBack() }]
-              );
-              return;
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              const currentUser = auth.currentUser;
+
+              if (!currentUser || data.userId !== currentUser.uid) {
+                Alert.alert(
+                  'Acesso Negado',
+                  'Você não tem permissão para editar receitas de outros usuários.',
+                  [{ text: 'OK', onPress: () => navigation.goBack() }]
+                );
+                return;
+              }
+
+              setTitle(data.title || '');
+              setCategory(data.category || '');
+              setPrepTime(data.prepTime ? String(data.prepTime) : '');
+              setServings(data.servings ? String(data.servings) : '');
+              setImageUrl(data.imageUrl || '');
+              setIngredients(data.ingredients || '');
+              setInstructions(data.instructions || '');
+              setImageUri(null);
+            } else {
+              Alert.alert('Erro', 'Receita não encontrada.', [
+                { text: 'OK', onPress: () => navigation.goBack() },
+              ]);
             }
-
-            setTitle(data.title || '');
-            setCategory(data.category || '');
-            setPrepTime(data.prepTime ? String(data.prepTime) : '');
-            setServings(data.servings ? String(data.servings) : '');
-            setImageUrl(data.imageUrl || '');
-          } else {
-            Alert.alert('Erro', 'Receita não encontrada.', [
-              { text: 'OK', onPress: () => navigation.goBack() },
-            ]);
+          } catch (error) {
+            console.error('Erro ao carregar receita para edição:', error);
+            Alert.alert('Erro', 'Não foi possível carregar os dados da receita.');
+            navigation.goBack();
+          } finally {
+            setFetchingData(false);
           }
-        } catch (error) {
-          console.error('Erro ao carregar receita para edição:', error);
-          Alert.alert('Erro', 'Não foi possível carregar os dados da receita.');
-          navigation.goBack();
-        } finally {
-          setFetchingData(false);
-        }
-      };
+        };
 
-      fetchRecipeData();
-    }
-  }, [isEditing, recipeId]);
+        fetchRecipeData();
+      } else {
+        // MODO CRIAÇÃO (Limpa todos os campos para garantir que venham vazios)
+        setTitle('');
+        setCategory('');
+        setPrepTime('');
+        setServings('');
+        setImageUrl('');
+        setImageUri(null);
+        setIngredients('');
+        setInstructions('');
+        setFetchingData(false);
+      }
+    }, [route.params?.recipeId])
+  );
 
   // Função para abrir a galeria e selecionar uma foto
   const handlePickImage = async () => {
@@ -104,7 +124,7 @@ export default function RecipeFormsScreen() {
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
       setImageUri(result.assets[0].uri);
-      setImageUrl(''); // Limpa a URL digitada se escolher um arquivo local
+      setImageUrl('');
     }
   };
 
@@ -112,7 +132,7 @@ export default function RecipeFormsScreen() {
   const uploadImageToStorage = async (uri: string): Promise<string> => {
     const response = await fetch(uri);
     const blob = await response.blob();
-    
+
     const filename = `recipes/${auth.currentUser?.uid}_${Date.now()}.jpg`;
     const storageRef = ref(storage, filename);
 
@@ -138,7 +158,6 @@ export default function RecipeFormsScreen() {
     try {
       let finalImageUrl = imageUrl.trim();
 
-      // Se o usuário selecionou um arquivo local, faz o upload primeiro
       if (imageUri) {
         finalImageUrl = await uploadImageToStorage(imageUri);
       }
@@ -211,7 +230,7 @@ export default function RecipeFormsScreen() {
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          
+
           <View style={styles.banner}>
             <Ionicons name={isEditing ? "create-outline" : "restaurant-outline"} size={36} color="#C85A32" />
             <Text style={styles.bannerTitle}>{isEditing ? 'Atualize sua Receita' : 'Compartilhe seu Sabor'}</Text>
@@ -272,10 +291,10 @@ export default function RecipeFormsScreen() {
               </View>
             </View>
 
-            {/* Seção de Imagem (Upload ou URL) */}
+            {/* Seção de Imagem */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Foto da Receita</Text>
-              
+
               <TouchableOpacity style={styles.uploadButton} onPress={handlePickImage}>
                 <Ionicons name="image-outline" size={20} color="#C85A32" />
                 <Text style={styles.uploadButtonText}>
@@ -293,7 +312,7 @@ export default function RecipeFormsScreen() {
                 value={imageUrl}
                 onChangeText={(text) => {
                   setImageUrl(text);
-                  if (text) setImageUri(null); // Limpa o arquivo local se digitar URL
+                  if (text) setImageUri(null);
                 }}
               />
             </View>
@@ -301,9 +320,9 @@ export default function RecipeFormsScreen() {
             {/* Pré-visualização da Imagem */}
             {(imageUri || imageUrl) ? (
               <View style={styles.previewContainer}>
-                <Image 
-                  source={{ uri: imageUri || imageUrl }} 
-                  style={styles.previewImage} 
+                <Image
+                  source={{ uri: imageUri || imageUrl }}
+                  style={styles.previewImage}
                   resizeMode="cover"
                 />
               </View>
