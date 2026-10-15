@@ -82,3 +82,12 @@ npx expo start
 
 
 5. Leia o código QR gerado no terminal com a câmara do seu telemóvel (ou abra num emulador) para testar o aplicativo através do Expo Go.
+
+
+INTEGRANTES
+
+Arthur Graciani - RM561728
+Gustavo Pinheiro - RM566358
+Lucas Hideki - RM565355
+João Pedro Scarpin - RM565421
+Wesley Andrade - RM563593
