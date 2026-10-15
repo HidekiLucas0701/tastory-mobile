@@ -87,7 +87,11 @@ npx expo start
 INTEGRANTES
 
 Arthur Graciani - RM561728
+
 Gustavo Pinheiro - RM566358
+
 Lucas Hideki - RM565355
+
 João Pedro Scarpin - RM565421
+
 Wesley Andrade - RM563593
